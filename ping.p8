@@ -58,10 +58,10 @@ function create_ball()
     local b = {}
     b.w = 5
     b.h = 5
-    b.x = 64 - b.w/2
-    b.y = 64 - b.w/2
-    b.vx = rnd(16) - 8 -- x velocity
-    b.vy = rnd(16) - 8 -- y velocity
+    b.x = 64 - flr(b.w/2)
+    b.y = 64 - flr(b.w/2)
+    b.vx = rnd(24) - 12 -- x velocity
+    b.vy = rnd(24) - 12 -- y velocity
     return b
 end
 
@@ -73,10 +73,7 @@ function init_game()
 
 end
 
-local skip=0
 function update_game()
-    skip += 1
-    if skip%debug.frame_skip > 0 then return end
 
     ball_move()
 
@@ -88,41 +85,50 @@ function draw_game()
     spr(1, ball.x, ball.y)
 end
 
-function ball_collision()
+function ball_collision(x, y)
     -- top
-    if solid(ball.x + ceil(ball.w/2), ball.y) then
-        printh('collide top')
-        ball.vy = abs(ball.vy)
-    end
-    -- left
-    if solid(ball.x, ball.y + ceil(ball.h/2)) then
-        printh('collide right')
-        ball.vx = abs(ball.vx)
-    end
-    -- bottom
-    if solid(ball.x + ceil(ball.w/2), ball.y + ball.h) then
-        printh('collide bottom')
-        ball.vy = abs(ball.vy) * -1
-    end
+    if solid(x + flr(ball.w/2), y) then return 1 end
     -- right
-    if solid(ball.x + ball.w, ball.y + ceil(ball.h/2)) then
-        printh('collide left')
-        ball.vx = abs(ball.vx) * -1
-    end
+    if solid(x + ball.w -1, y + flr(ball.h/2)) then return 2 end
+    -- bottom
+    if solid(x + flr(ball.w/2), y + ball.h -1) then return 3 end
+    -- left
+    if solid(x, y + flr(ball.h/2)) then return 4 end
 end
 
 
 
 function ball_move()
 
-    -- Add some friction
-    ball.vx *= 0.999
-    ball.vy *= 0.999
+    local fake = {}
+    fake.vx = ball.vx * 0.999
+    fake.vy = ball.vy * 0.999
+    fake.x = ball.x
+    fake.y = ball.y
 
-    ball_collision()
+    local i = abs(fake.vx) + abs(fake.vy)
+    fake.ix = fake.vx/i
+    fake.iy = fake.vy/i
 
-    ball.x += ball.vx
-    ball.y += ball.vy
+    for x=0,i do
+
+        fake.x += fake.ix
+        fake.y += fake.iy
+
+        c = ball_collision(fake.x, fake.y)
+        if c == 1 then fake.iy = abs(fake.iy) end
+        if c == 2 then fake.ix = abs(fake.ix) * -1 end
+        if c == 3 then fake.iy = abs(fake.iy) * -1 end
+        if c == 4 then fake.ix = abs(fake.ix) end
+
+    end
+
+
+    ball.vx = fake.ix * i
+    ball.vy = fake.iy * i
+
+    ball.x = fake.x
+    ball.y = fake.y
 
 end
 
