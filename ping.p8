@@ -15,7 +15,7 @@ physics.friction = 0.01
 physics.vmax = 8 -- max velocity
 physics.vmin = 1 -- min velocity
 
--- Grid
+-- grid
 grid = {}
 grid.w = 8
 grid.h = 8
@@ -56,8 +56,8 @@ end
 
 function create_ball()
     local b = {}
-    b.w = 6
-    b.h = 6
+    b.w = 5
+    b.h = 5
     b.x = 64 - b.w/2
     b.y = 64 - b.w/2
     b.vx = rnd(16) - 8 -- x velocity
@@ -88,44 +88,38 @@ function draw_game()
     spr(1, ball.x, ball.y)
 end
 
-
-function bounce(a)
-    a.vx = rnd(6) - 3
-    a.vy = rnd(6) - 3
-end
-
-function ball_move()
-
-    ball.vx *= 0.999
-    ball.vy *= 0.999
-
-
-        fx = ball.x + ball.vx
-
-
-
-        fy = ball.y + ball.vy
-
+function ball_collision()
     -- top
-    if(solid_area(fx + (ball.w/2) -1, fy, 2, 1)) then
+    if solid(ball.x + ceil(ball.w/2), ball.y) then
         printh('collide top')
         ball.vy = abs(ball.vy)
     end
     -- left
-    if(solid_area(fx, fy + (ball.h/2) -1, 1, 2)) then
+    if solid(ball.x, ball.y + ceil(ball.h/2)) then
         printh('collide right')
         ball.vx = abs(ball.vx)
     end
     -- bottom
-    if(solid_area(fx + (ball.w/2) -1, fy + ball.h -1, 2, 1)) then
+    if solid(ball.x + ceil(ball.w/2), ball.y + ball.h) then
         printh('collide bottom')
         ball.vy = abs(ball.vy) * -1
     end
     -- right
-    if(solid_area(fx + ball.w -1, fy + (ball.h/2) -1, 1, 2)) then
+    if solid(ball.x + ball.w, ball.y + ceil(ball.h/2)) then
         printh('collide left')
         ball.vx = abs(ball.vx) * -1
     end
+end
+
+
+
+function ball_move()
+
+    -- Add some friction
+    ball.vx *= 0.999
+    ball.vy *= 0.999
+
+    ball_collision()
 
     ball.x += ball.vx
     ball.y += ball.vy
@@ -138,7 +132,7 @@ function solid(x, y)
     return fget(v, 1)
 end
 
--- Return the tile for a given pixel
+-- return the tile for a given pixel
 function tget(x, y)
     return mget(flr(x/grid.w), flr(y/grid.h))
 end
@@ -149,7 +143,7 @@ end
 --(this version only works for
 --actors less than one tile big)
 function solid_area(x,y,w,h)
-    -- Check top-left, top-right, bottom-right, bottom-left
+    -- check top-left, top-right, bottom-right, bottom-left
     return
         solid(x,y) or
         solid(x+w,y) or
@@ -202,12 +196,12 @@ function _draw()
     end
 end
 __gfx__
-0000000000dd00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-000000000d66d00000117777777777777777220000cc7777777777777777220000117777777777777777880000cc700000000000000788000000000000000000
-00700700dddd6d00011ffffffffffffffffff2200ccffffffffffffffffff220011ffffffffffffffffff8800ccff77777777777777ff8800000000000000000
-00077000dddddd0001ffffffffffffffffffff200cffffffffffffffffffff2001ffffffffffffffffffff800cffffffffffffffffffff800000000000000000
-0007700005dd500001ffffffffffffffffffff200cffffffffffffffffffff2001ffffffffffffffffffff800cffffffffffffffffffff800000000000000000
-0070070000550000011ffffffffffffffffff2200ccffffffffffffffffff220011ffffffffffffffffff8800ccffffffffffffffffff8800000000000000000
+00000000006000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+000000000dd6000000117777777777777777220000cc7777777777777777220000117777777777777777880000cc700000000000000788000000000000000000
+00700700dddd6000011ffffffffffffffffff2200ccffffffffffffffffff220011ffffffffffffffffff8800ccff77777777777777ff8800000000000000000
+0007700005d5000001ffffffffffffffffffff200cffffffffffffffffffff2001ffffffffffffffffffff800cffffffffffffffffffff800000000000000000
+000770000050000001ffffffffffffffffffff200cffffffffffffffffffff2001ffffffffffffffffffff800cffffffffffffffffffff800000000000000000
+0070070000000000011ffffffffffffffffff2200ccffffffffffffffffff220011ffffffffffffffffff8800ccffffffffffffffffff8800000000000000000
 000000000000000000116666666666666666220000cc6666666666666666220000116666666666666666880000cc666666666666666688000000000000000000
 00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
