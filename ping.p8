@@ -4,44 +4,42 @@ __lua__
 
 -- ping - an arkanoid/pinball hybrid thing by dannysomething (dan-powell.uk)
 
--- basic de-buggary
+-- basic de-buggery
 debug = {}
-debug.frame_skip = 1
 
--- core physics values
+-- Core physics values
 physics = {}
 physics.gravity = 0.2
 physics.friction = 0.99
 physics.vmax = 6 -- max velocity
-physics.vmin = 1 -- min velocity
 
--- grid
+-- Tile grid
 grid = {}
 grid.w = 8
 grid.h = 8
 
--- actors
+-- Actor tables
 spawn = 30
 bricks = {}
 balls = {}
 
-
--- camera
+-- Camera attributes
 cam = {}
 cam.y = 0
 cam.w = 128
 cam.h = 128
 cam.c = flr(cam.h/2)
 
--- level
-
+-- Level attributes
 lvl = {}
 lvl.tw = 16
 lvl.th = 64
 lvl.w = lvl.tw * 8
 lvl.h = lvl.th * 8
 
--- title
+-- ====================================
+-- Title
+-- ====================================
 
 function init_title()
     mode = 0
@@ -67,49 +65,78 @@ function draw_title()
     end
 end
 
--- game
+-- ====================================
+-- Game
+-- ====================================
 
-function create_ball()
-    local b = {}
-    b.w = 5
-    b.h = 5
-    b.x = 64 - flr(b.w/2)
-    b.y = 64 - flr(b.w/2)
-    b.vx = rnd(24) - 12 -- x velocity
-    b.vy = rnd(24) - 12 -- y velocity
+-- Create a new ball instance
+function new_ball()
+    local b = {
+        w = 5, -- Width
+        h = 5, -- Height
+        x = 0, -- Absolute X position
+        y = 0, -- Absolute Y position
+        vx = 0, -- Y Velocity (pixels moved per frame)
+        vy = 0, -- X Velocity (pixels moved per frame)
+        g = physics.gravity, -- Gravity
+        f = physics.friction -- Friction
+    }
     return b
 end
+
+-- Add a ball to the game engine
+function add_ball()
+    local b = new_ball()
+    b.x = rnd(24) + 16 -- starting x position (absolute)
+    b.y = rnd(24) + 16 -- starting y position (absolute)
+    b.vx = rnd(24) - 12 -- starting x velocity
+    b.vy = rnd(24) - 12 -- starting y velocity
+    add(balls, b)
+    return b
+end
+
+-- ====================================
+-- START
+-- ====================================
 
 function init_game()
     printh('game start')
     mode = 1
-
-    ball = create_ball()
-
+    for x=1,50 do
+        add_ball()
+    end
+    ball = add_ball()
 end
 
 function update_game()
-    ball_move()
+    move_balls()
     update_camera()
 end
 
 function draw_game()
     cls(4)
     map(0,0,0,0,16,64)
-    spr(1, ball.x, ball.y)
+    draw_balls()
     camera(0, cam.y)
+end
+
+function draw_balls()
+    foreach(balls, draw_ball)
+end
+
+function draw_ball(b)
+    --print(b.vy, b.x + 6, b.y)
+    spr(1, b.x, b.y)
 end
 
 -- Update the camera position
 function update_camera()
 
-
-    local c = cam.y+cam.h/2
-    local y = ball.y - c
+    local y = ball.y - (cam.y+cam.h/2) -- y offset of ball from center of cam
 
     -- center the camera on the ball, but only if it approaches edges of screen
     if y > 30 or y < -30 then
-        cam.y += y/(abs(y)/4)
+        cam.y += y/8
     end
 
     -- Limit the camera to stop it revealing outside of map
@@ -122,79 +149,74 @@ function update_camera()
 
 end
 
-function ball_collision(x, y)
-    -- top
-    if solid(x + flr(ball.w/2), y) then return 1 end
-    -- right
-    if solid(x + ball.w -1, y + flr(ball.h/2)) then return 2 end
-    -- bottom
-    if solid(x + flr(ball.w/2), y + ball.h -1) then return 3 end
-    -- left
-    if solid(x, y + flr(ball.h/2)) then return 4 end
+-- Check if any side of ball collides with a wall. Returns integer depending on side of collision
+function ball_collision_wall(b)
+    if solid(b.x + flr(b.w/2), b.y) then return 1 end -- 1 top
+    if solid(b.x + b.w -1, b.y + flr(b.h/2)) then return 2 end -- 2 right
+    if solid(b.x + flr(b.w/2), b.y + b.h -1) then return 3 end -- 3 bottom
+    if solid(b.x, b.y + flr(b.h/2)) then return 4 end -- 4 left
+    return 0 -- 0 nuffin
 end
 
+-- Update all balls
+function move_balls()
+    foreach(balls, move_ball)
+end
 
-function ball_move()
+-- Update position of ball
+function move_ball(b)
 
-    local fake = {}
-    fake.vx = ball.vx * physics.friction
-    fake.vy = ball.vy * physics.friction + physics.gravity
-    fake.x = ball.x
-    fake.y = ball.y
+    -- Test if colliding, and change gravity accordingly
+    if ball_collision_wall(b) != 0 then
+        b.g = 0
+    else
+        b.g = physics.gravity
+    end
 
+    -- Create a fake ball
+    local fake = b
+    fake.vx = b.vx * b.f -- Add a friction coefficient
+    fake.vy = b.vy * b.f + b.g -- Add a friction coefficient + gravity
+    fake.x = b.x
+    fake.y = b.y
+
+    -- Figure out number of pixels ball will move this frame
     local i = abs(fake.vx) + abs(fake.vy)
     fake.ix = fake.vx/i
     fake.iy = fake.vy/i
 
+    -- For each pixel, test if fake will collide, and adjust velocity accordingly
     for x=0,i do
-
         fake.x += fake.ix
         fake.y += fake.iy
-
-        c = ball_collision(fake.x, fake.y)
-        if c == 1 then fake.iy = abs(fake.iy) end
-        if c == 2 then fake.ix = abs(fake.ix) * -1 end
-        if c == 3 then fake.iy = abs(fake.iy) * -1 end
-        if c == 4 then fake.ix = abs(fake.ix) end
-
+        c = ball_collision_wall(fake)
+        if c == 1 then fake.iy = abs(fake.iy) end -- Top, bounce up
+        if c == 2 then fake.ix = abs(fake.ix) * -1 end -- Right, bounce left
+        if c == 3 then fake.iy = abs(fake.iy) * -1 end -- Bottom, bounce up
+        if c == 4 then fake.ix = abs(fake.ix) end -- Left, bounce right
     end
 
-
-    ball.vx = min(fake.ix * i, physics.vmax)
-    ball.vy = min(fake.iy * i, physics.vmax)
-
-    ball.x = fake.x
-    ball.y = fake.y
-
+    -- Bring it all together and update the actual position
+    b.vx = fake.ix * i
+    b.vy = fake.iy * i
+    b.x = fake.x
+    b.y = fake.y
 end
 
-
+-- Test if position contains a collidable tile
 function solid(x, y)
     v=tget(x, y)
     return fget(v, 1)
 end
 
--- return the tile for a given pixel
+-- return the tile at a given pixel position
 function tget(x, y)
     return mget(flr(x/grid.w), flr(y/grid.h))
 end
 
--- solid_area
--- check if a rectangle overlaps
--- with an area
---(this version only works for
---actors less than one tile big)
-function solid_area(x,y,w,h)
-    -- check top-left, top-right, bottom-right, bottom-left
-    return
-        solid(x,y) or
-        solid(x+w,y) or
-        solid(x+w,y+h) or
-        solid(x,y+h)
-end
-
-
--- lose
+-- ====================================
+-- Lose
+-- ====================================
 
 function init_lose()
     mode = 2
@@ -212,7 +234,9 @@ function draw_lose()
 
 end
 
--- core functions
+-- ====================================
+-- State Management
+-- ====================================
 
 function _init()
     init_title() -- does title things.
