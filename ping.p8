@@ -10,7 +10,8 @@ debug = {}
 -- Core physics values
 physics = {}
 physics.gravity = 0.2
-physics.friction = 0.99
+physics.fx = 0.999
+physics.fy = 0.95
 physics.vmax = 6 -- max velocity
 
 -- Tile grid
@@ -19,9 +20,9 @@ grid.w = 8
 grid.h = 8
 
 -- Actor tables
-spawn = 30
 bricks = {}
 balls = {}
+bats = {}
 
 -- Camera attributes
 cam = {}
@@ -76,10 +77,11 @@ function new_ball()
         h = 5, -- Height
         x = 0, -- Absolute X position
         y = 0, -- Absolute Y position
-        vx = 0, -- Y Velocity (pixels moved per frame)
-        vy = 0, -- X Velocity (pixels moved per frame)
+        vx = 0, -- X Velocity (pixels moved per frame)
+        vy = 0, -- Y Velocity (pixels moved per frame)
         g = physics.gravity, -- Gravity
-        f = physics.friction -- Friction
+        fx = physics.fx, -- Friction X
+        fy = physics.fy -- Friction Y
     }
     return b
 end
@@ -95,38 +97,63 @@ function add_ball()
     return b
 end
 
--- ====================================
--- START
--- ====================================
+function new_bat()
+    local b = {
+        w = 24, -- Width
+        h = 6, -- Height
+        x = 0, -- Absolute X position
+        y = 0, -- Absolute Y position
+        vx = 0, -- X Velocity (pixels moved per frame)
+        fx = physics.fx -- Friction
+    }
+    return b
+end
+
+-- Add a ball to the game engine
+function add_bat(y)
+    local b = new_bat()
+    b.x = flr(lvl.w/2)
+    b.y = y
+    add(bats, b)
+    return b
+end
+
 
 function init_game()
     printh('game start')
     mode = 1
-    for x=1,50 do
-        add_ball()
+    for x=1,20 do
+        -- add_ball()
     end
     ball = add_ball()
+    player = add_bat(lvl.h - 16)
+    add_bat(flr(lvl.h/2))
+    add_bat(96)
 end
 
 function update_game()
-    move_balls()
+    move_actors()
     update_camera()
 end
 
 function draw_game()
     cls(4)
     map(0,0,0,0,16,64)
-    draw_balls()
+    draw_actors()
     camera(0, cam.y)
 end
 
-function draw_balls()
+function draw_actors()
     foreach(balls, draw_ball)
+    foreach(bats, draw_bat)
 end
 
 function draw_ball(b)
-    --print(b.vy, b.x + 6, b.y)
     spr(1, b.x, b.y)
+end
+
+function draw_bat(b)
+    spr(2, b.x, b.y, 3, 1)
 end
 
 -- Update the camera position
@@ -146,22 +173,28 @@ function update_camera()
         cam.y = lvl.h - cam.h
     end
 
-
 end
 
--- Check if any side of ball collides with a wall. Returns integer depending on side of collision
-function ball_collision_wall(b)
-    if solid(b.x + flr(b.w/2), b.y) then return 1 end -- 1 top
-    if solid(b.x + b.w -1, b.y + flr(b.h/2)) then return 2 end -- 2 right
-    if solid(b.x + flr(b.w/2), b.y + b.h -1) then return 3 end -- 3 bottom
-    if solid(b.x, b.y + flr(b.h/2)) then return 4 end -- 4 left
-    return 0 -- 0 nuffin
-end
-
--- Update all balls
-function move_balls()
+-- Update all actors
+function move_actors()
     foreach(balls, move_ball)
+    foreach(bats, move_bat)
 end
+
+-- Update position of ball
+function move_bat(b)
+    if btn(0) then
+        b.vx -= 1
+    elseif btn(1) then
+        b.vx += 1
+    else
+        b.vx = b.vx/6 * -1
+    end
+    b.x += limit_velocity(b.vx)
+    if b.x < 8 then b.x = 8 b.vx = 0 end
+    if b.x > lvl.w - 8 - b.w then b.x = lvl.w - 8 - b.w b.vx = 0 end
+end
+
 
 -- Update position of ball
 function move_ball(b)
@@ -175,36 +208,83 @@ function move_ball(b)
 
     -- Create a fake ball
     local fake = b
-    fake.vx = b.vx * b.f -- Add a friction coefficient
-    fake.vy = b.vy * b.f + b.g -- Add a friction coefficient + gravity
+    fake.vx = b.vx * b.fx -- Add a friction coefficient
+    fake.vy = b.vy * b.fy + b.g -- Add a friction coefficient + gravity
     fake.x = b.x
     fake.y = b.y
 
     -- Figure out number of pixels ball will move this frame
     local i = abs(fake.vx) + abs(fake.vy)
-    fake.ix = fake.vx/i
-    fake.iy = fake.vy/i
+    fake.ivx = fake.vx/i
+    fake.ivy = fake.vy/i
 
     -- For each pixel, test if fake will collide, and adjust velocity accordingly
     for x=0,i do
-        fake.x += fake.ix
-        fake.y += fake.iy
-        c = ball_collision_wall(fake)
-        if c == 1 then fake.iy = abs(fake.iy) end -- Top, bounce up
-        if c == 2 then fake.ix = abs(fake.ix) * -1 end -- Right, bounce left
-        if c == 3 then fake.iy = abs(fake.iy) * -1 end -- Bottom, bounce up
-        if c == 4 then fake.ix = abs(fake.ix) end -- Left, bounce right
+        fake.x += fake.ivx
+        fake.y += fake.ivy
+        local c = ball_collision_wall(fake)
+        if c == 1 then fake.ivy = abs(fake.ivy) end -- Top, bounce down
+        if c == 2 then fake.ivx = abs(fake.ivx) * -1 end -- Right, bounce left
+        if c == 3 then fake.ivy = abs(fake.ivy) * -1 end -- Bottom, bounce up
+        if c == 4 then fake.ivx = abs(fake.ivx) end -- Left, bounce right
+
+        c = ball_collision_bat(b)
+        if c == 1 then b.ivy = abs(b.ivy) + 1 end -- Top, bounce down
+        if c == 2 then b.ivx = (abs(b.ivx) * -1) - 1 end -- Right, bounce left
+        if c == 3 then
+            b.ivy = (abs(b.ivy) * -1) - 1
+            b.ivx += player.vx/10
+        end -- Bottom, bounce up
+        if c == 4 then b.ivx = abs(b.ivx) + 1 end -- Left, bounce right
     end
 
     -- Bring it all together and update the actual position
-    b.vx = fake.ix * i
-    b.vy = fake.iy * i
+    b.vx = limit_velocity(fake.ivx * i) --limit_velocity(fake.ivx * i)
+    b.vy = fake.ivy * i
     b.x = fake.x
     b.y = fake.y
 end
 
+function limit_velocity(x)
+    if x > 0 then
+        return min(x, physics.vmax)
+    elseif x < 0 then
+        return max(x, physics.vmax * -1)
+    else
+        return 0
+    end
+end
+
+-- Check if any side of ball collides with a wall. Returns integer depending on side of collision
+function ball_collision_wall(b)
+    if collide_wall(b.x + flr(b.w/2), b.y) then return 1 end -- 1 top
+    if collide_wall(b.x + b.w -1, b.y + flr(b.h/2)) then return 2 end -- 2 right
+    if collide_wall(b.x + flr(b.w/2), b.y + b.h -1) then return 3 end -- 3 bottom
+    if collide_wall(b.x, b.y + flr(b.h/2)) then return 4 end -- 4 left
+    return 0 -- 0 nuffin
+end
+
+-- Check if any side of ball collides with a bat. Returns integer depending on side of collision
+function ball_collision_bat(b)
+    if collide_bat(b.x + flr(b.w/2), b.y) then return 1 end -- 1 top
+    if collide_bat(b.x + b.w -1, b.y + flr(b.h/2)) then return 2 end -- 2 right
+    if collide_bat(b.x + flr(b.w/2), b.y + b.h -1) then return 3 end -- 3 bottom
+    if collide_bat(b.x, b.y + flr(b.h/2)) then return 4 end -- 4 left
+    return 0 -- 0 nuffin
+end
+
+-- Test if position contains a bat. Returns the bat number if collisioned
+function collide_bat(x, y)
+    for i=1,count(bats) do
+        if x > bats[i].x and x < bats[i].x + bats[i].w and y > bats[i].y and y < bats[i].y + bats[i].h then
+            return i
+        end
+    end
+    return false
+end
+
 -- Test if position contains a collidable tile
-function solid(x, y)
+function collide_wall(x, y)
     v=tget(x, y)
     return fget(v, 1)
 end
