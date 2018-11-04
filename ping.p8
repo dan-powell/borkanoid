@@ -4,13 +4,8 @@ __lua__
 
 -- borkanoid - an arkanoid/pinball hybrid thing by dannysomething (dan-powell.uk)
 
--- todo
+-- TODO
 
--- success next (level message)
--- levels
--- level reset
--- lives (and losing them)
--- scoring
 -- falling pickups for bonus points
 -- start screen
 -- lose screen
@@ -99,6 +94,7 @@ level = levels[1]
 -- ====================================
 
 function init_title()
+    printh('title')
     -- set the state of the game
     state = 0
     -- 0 start screen
@@ -164,6 +160,7 @@ function update_game()
 
     if status < 2 then
         -- level in progress
+        update_debounce()
         move_actors()
         update_camera()
         check_win()
@@ -453,6 +450,36 @@ function collide_paddle(x, y)
     return 0
 end
 
+-- Debounce - used in relation tiles
+debounce = {}
+function set_debounce(x,y,v)
+    x += (level.mx * 8)
+    y += (level.my * 8)
+    local i = flr(x/grid.w) + level.tw * flr(y/grid.h)
+    debounce[i] = v
+end
+
+function has_debounce(x,y)
+    x += (level.mx * 8)
+    y += (level.my * 8)
+    local i = flr(x/grid.w) + level.tw * flr(y/grid.h)
+    local d = debounce[i]
+    if d == nil then
+        return false
+    end
+    if d <= 0 then
+        return false
+    end
+    return true
+end
+
+-- Decrement all debounce values (each frame)
+function update_debounce(x,y)
+    for k, v in pairs(debounce) do
+        debounce[k] -= 1
+    end
+end
+
 -- collide with a collidable tile
 function collide(x, y)
     t=tget(x, y)
@@ -461,29 +488,32 @@ function collide(x, y)
         -- Test if tile is a brick
         if fget(t, 1) then
 
-            if fget(t, 5) then
-                -- 4th brick
-                tset(x, y, t-1)
-                player.score += 25
-                sfx(2)
-            elseif fget(t, 4) then
-                -- 3rd brick
-                tset(x, y, t-1)
-                player.score += 50
-                sfx(2)
-            elseif fget(t, 3) then
-                -- 2nd brick
-                tset(x, y, t-1)
-                player.score += 75
-                sfx(2)
-            elseif fget(t, 2) then
-                -- Lightest brick
-                tset(x, y, 0)
-                player.score += 100
-                level.b -= 1
-                sfx(2)
+            -- Check if tile has a debounce value
+            if has_debounce(x,y) == false then
+                if fget(t, 5) then
+                    -- 4th brick
+                    tset(x, y, t-1)
+                    player.score += 25
+                    sfx(2)
+                elseif fget(t, 4) then
+                    -- 3rd brick
+                    tset(x, y, t-1)
+                    player.score += 50
+                    sfx(2)
+                elseif fget(t, 3) then
+                    -- 2nd brick
+                    tset(x, y, t-1)
+                    player.score += 75
+                    sfx(2)
+                elseif fget(t, 2) then
+                    -- Lightest brick
+                    tset(x, y, 0)
+                    player.score += 100
+                    level.b -= 1
+                    sfx(2)
+                end
+                set_debounce(x,y,60) -- Set a debounce on tile
             end
-
         end
         return true
     else
@@ -498,6 +528,7 @@ function tget(x, y)
     return mget(flr(x/grid.w), flr(y/grid.h))
 end
 
+-- set the tile at a given pixel position
 function tset(x, y, v)
     x += (level.mx * 8)
     y += (level.my * 8)
@@ -512,8 +543,8 @@ function draw_game()
     cls(0)
     map(level.mx,level.my,0,0,level.tw,level.th)
     draw_actors()
-    -- print(stat(0), 0, cam.y) -- debug memory
-    -- print(stat(1), 0, cam.y + 8) -- debug cpu
+    -- print(stat(0), 9, cam.y + cam.h - 16, 7) -- debug memory
+    -- print(stat(1), 9, cam.y + cam.h - 8, 7) -- debug cpu
     camera(0, cam.y)
     draw_ui()
     if status == 0 then
